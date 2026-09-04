@@ -1,16 +1,19 @@
 # fsl-cli
 
-A local-first agentic AI assistant for the terminal, powered by **Ollama** and **LangGraph**.
+# fsl-cli
+
+Firstsource's local-first agentic AI assistant for the terminal, powered by **Ollama** and **LangGraph**.
 
 It reads files, writes code, edits existing files surgically, runs shell commands, searches your codebase, browses the web, and generates documents (Excel, PDF, YAML, CSV) — all driven by a local LLM, with no API keys and no data leaving your machine.
 
 ```
-  ██╗  ██╗ █████╗ ███████╗██╗  ██╗
-  ██║  ██║██╔══██╗██╔════╝██║  ██║
-  ███████║███████║███████╗███████║
-  ██╔══██║██╔══██║╚════██║██╔══██║
-  ██║  ██║██║  ██║███████║██║  ██║
-  ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
+  ███████╗███████╗██╗
+  ██╔════╝██╔════╝██║
+  █████╗  ███████╗██║
+  ██╔══╝  ╚════██║██║
+  ██║     ███████║███████╗
+  ╚═╝     ╚══════╝╚══════╝
+  Firstsource · AI CLI
 ```
 
 ---
@@ -198,7 +201,7 @@ fsl-cli/
 │   │   ├── web_tools.py    # web_search, web_fetch
 │   │   └── doc_tools.py    # create_excel, create_pdf, create_yaml, create_csv
 │   └── ui/
-│       ├── console.py      # HashConsole (Rich rendering, streaming, panels)
+│       ├── console.py      # FslConsole (Rich rendering, streaming, panels)
 │       └── theme.py        # Colour palette and spinner config
 ├── packaging/
 │   ├── macos/              # build_mac.sh → universal .pkg
