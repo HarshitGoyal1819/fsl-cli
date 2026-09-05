@@ -129,24 +129,45 @@ class FslConsole:
         tool_log: list = []
         captured_usage: UsageStats | None = None
 
-        with Live(
+        # Each tool call is printed IMMEDIATELY and PERMANENTLY as it happens,
+        # so the user always sees exactly which tool ran and with what input.
+        # A transient spinner shows only while waiting (it clears itself).
+        live = Live(
             Spinner("dots", text="  Thinking…", style="fsl.accent"),
             console=self._console,
             refresh_per_second=20,
             transient=True,
-        ) as live:
+        )
+        live.start()
+        spinner_running = True
+
+        def _pause_spinner():
+            nonlocal spinner_running
+            if spinner_running:
+                live.stop()
+                spinner_running = False
+
+        def _resume_spinner(text="  Thinking…"):
+            nonlocal spinner_running
+            live.update(Spinner("dots", text=text, style="fsl.accent"))
+            if not spinner_running:
+                live.start()
+                spinner_running = True
+
+        try:
             for event in events:
                 if event.kind == "tool_start":
-                    live.update(Spinner(
-                        "dots2",
-                        text=f"  {event.tool_name}…",
-                        style="fsl.tool_name",
-                    ))
+                    # Print the tool call line permanently (above the spinner)
+                    _pause_spinner()
+                    self._print_tool_call(event.tool_name, event.tool_input)
+                    _resume_spinner(f"  running {event.tool_name}…")
                     tool_log.append(("start", event.tool_name, event.tool_input))
 
                 elif event.kind == "tool_end":
+                    _pause_spinner()
+                    self._print_tool_result(event.tool_name, event.tool_output)
+                    _resume_spinner()
                     tool_log.append(("end", event.tool_name, event.tool_output))
-                    live.update(Spinner("dots", text="  Thinking…", style="fsl.accent"))
 
                 elif event.kind == "token":
                     full_text += event.content
@@ -155,9 +176,8 @@ class FslConsole:
                     captured_usage = event.usage
 
                 elif event.kind == "error":
-                    live.stop()
+                    _pause_spinner()
                     err = event.content
-                    # Detect out-of-memory / model-crash errors and give guidance
                     if any(sig in err.lower() for sig in
                            ("killed", "status code: 500", "out of memory", "oom", "terminated")):
                         self._console.print(
@@ -167,15 +187,13 @@ class FslConsole:
                             "   Or use a cloud model (DeepSeek V4 Flash) which doesn't use local RAM.[/fsl.dim]"
                         )
                     else:
-                        self._console.print(
-                            f"[fsl.error]✗  {escape(err)}[/fsl.error]"
-                        )
+                        self._console.print(f"[fsl.error]✗  {escape(err)}[/fsl.error]")
                     getter = getattr(events, "get_history", None)
                     history = getter() if callable(getter) else []
                     return history, None
-
-        if tool_log:
-            self._print_tool_summary(tool_log)
+        finally:
+            if spinner_running:
+                live.stop()
 
         clean = _strip_raw_tool_json(full_text)
         if clean:
@@ -238,6 +256,51 @@ class FslConsole:
                 line.append(f"  │  session: {session_total:,}", style="fsl.dim")
 
         self._console.print(line)
+
+    # ------------------------------------------------------------------
+    # Live per-tool display (printed permanently as each tool runs)
+    # ------------------------------------------------------------------
+
+    def _print_tool_call(self, tool_name: str, args: dict) -> None:
+        """Print a tool invocation line the moment it starts — always visible."""
+        desc = _tool_human_desc(tool_name, args)
+        header = Text()
+        header.append("  ⚙ ", style="fsl.tool_name")
+        header.append(tool_name, style="fsl.tool_name")
+        if desc:
+            header.append("  " + desc, style="fsl.tool_io")
+        self._console.print(header)
+
+        # For run_command specifically, show the FULL command on its own line
+        if tool_name == "run_command" and args.get("command"):
+            self._console.print(
+                f"      [fsl.dim]$[/fsl.dim] [fsl.accent]{escape(str(args['command']))}[/fsl.accent]"
+            )
+        elif tool_name == "manage_packages":
+            action = args.get("action", "")
+            pkgs = ", ".join(args.get("packages", []) or [])
+            mgr = args.get("manager", "auto")
+            self._console.print(
+                f"      [fsl.dim]$[/fsl.dim] [fsl.accent]{mgr} {action} {escape(pkgs)}[/fsl.accent]"
+            )
+
+    def _print_tool_result(self, tool_name: str, output: str) -> None:
+        """Print the tool's result right after it completes."""
+        if not output:
+            return
+        text = str(output).strip()
+        lines = text.splitlines()
+        # Show up to 8 lines of output so the user sees what happened,
+        # then indicate truncation for anything longer.
+        MAX = 8
+        shown = lines[:MAX]
+        for ln in shown:
+            self._console.print(f"      [fsl.tool_io]{escape(ln[:200])}[/fsl.tool_io]")
+        if len(lines) > MAX:
+            self._console.print(
+                f"      [fsl.dim]… (+{len(lines) - MAX} more lines)[/fsl.dim]"
+            )
+
     # ------------------------------------------------------------------
     # Tool summary + assistant panel
     # ------------------------------------------------------------------
