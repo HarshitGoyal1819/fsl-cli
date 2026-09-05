@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import os
+import warnings
 from pathlib import Path
 from typing import Optional
+
+# Suppress noisy third-party warnings (e.g. Gemini "temperature ignored",
+# LangChain deprecation notices) so they don't clutter each response.
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import typer
 from langchain_core.messages import BaseMessage

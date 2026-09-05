@@ -239,7 +239,14 @@ def _build_llm(config: AgentConfig):
         return ChatAnthropic(model=config.model, temperature=config.temperature)
     elif config.provider == "google":
         from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(model=config.model, temperature=config.temperature)
+        # Newer Gemini models (3.x) use fixed sampling and reject temperature —
+        # passing it triggers a UserWarning on every call. Only send temperature
+        # for older 1.x/2.x models that still accept it.
+        gkwargs: dict = {"model": config.model}
+        m = config.model.lower()
+        if not (m.startswith("gemini-3") or "flash-lite" in m or "-3." in m):
+            gkwargs["temperature"] = config.temperature
+        return ChatGoogleGenerativeAI(**gkwargs)
     else:
         raise ValueError(f"Unknown provider: {config.provider}")
 
